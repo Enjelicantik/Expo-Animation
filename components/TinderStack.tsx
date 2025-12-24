@@ -16,7 +16,6 @@ const SWIPE_THRESHOLD = width * 0.25;
 const CARD_WIDTH = width - 40;
 const CARD_HEIGHT = height * 0.6;
 
-// Data dummy untuk kartu
 const CARD_DATA = [
     {
         id: 1,
@@ -69,7 +68,6 @@ const Card: React.FC<CardProps> = ({ card, index, totalCards, translateX, transl
 
     const animatedStyle = useAnimatedStyle(() => {
         if (!isTopCard) {
-            // Kartu di bawah: scale dan opacity berdasarkan posisi
             const scale = interpolate(
                 index,
                 [0, 1, 2],
@@ -88,7 +86,6 @@ const Card: React.FC<CardProps> = ({ card, index, totalCards, translateX, transl
             };
         }
 
-        // Kartu teratas: animasi berdasarkan gesture
         const rotate = interpolate(
             translateX.value,
             [-width, 0, width],
@@ -96,8 +93,6 @@ const Card: React.FC<CardProps> = ({ card, index, totalCards, translateX, transl
             Extrapolation.CLAMP
         );
 
-        // Opacity tetap 1 agar gambar tetap utuh saat di-swipe
-        // Hanya opacity yang akan berubah saat kartu benar-benar akan dihapus (di callback)
         const opacity = 1;
 
         return {
@@ -156,7 +151,6 @@ const Card: React.FC<CardProps> = ({ card, index, totalCards, translateX, transl
         };
     });
 
-    // Sembunyikan kartu yang sedang di-swipe dengan pointerEvents untuk menghindari gesture conflict
     const cardStyle = useAnimatedStyle(() => {
         if (isTopCard && isSwiping) {
             return {
@@ -191,12 +185,10 @@ const Card: React.FC<CardProps> = ({ card, index, totalCards, translateX, transl
                 <Text style={styles.cardBio}>{card.bio}</Text>
             </View>
 
-            {/* Heart Icon - muncul di top-left saat swipe kanan */}
             <Animated.View style={[styles.iconBadge, styles.heartIcon, likeOverlayStyle]}>
                 <Text style={styles.iconText}>❤️</Text>
             </Animated.View>
 
-            {/* X Icon - muncul di top-right saat swipe kiri */}
             <Animated.View style={[styles.iconBadge, styles.xIcon, nopeOverlayStyle]}>
                 <Text style={styles.iconText}>✕</Text>
             </Animated.View>
@@ -210,14 +202,10 @@ const TinderStack: React.FC = () => {
     const translateX = useSharedValue(0);
     const translateY = useSharedValue(0);
 
-    // Filter kartu yang belum di-swipe (termasuk yang sedang di-swipe untuk animasi)
-    // Kartu yang sedang di-swipe tetap di array sampai animasi selesai
     const availableCards = React.useMemo(() => {
         return CARD_DATA.filter(card => !swipedCardIds.has(card.id));
     }, [swipedCardIds]);
 
-    // Pastikan selalu menampilkan minimal 3 kartu dari kartu yang tersedia
-    // Kartu yang sedang di-swipe tetap ditampilkan untuk menghindari kedipan
     const activeCards = React.useMemo(() => {
         const cards = [];
         const maxCards = Math.min(3, availableCards.length);
@@ -238,19 +226,15 @@ const TinderStack: React.FC = () => {
     }, []);
 
     const handleSwipeComplete = useCallback((direction: 'left' | 'right', cardId: number) => {
-        // Logika berbeda untuk swipe kiri dan kanan
         const swipedCard = CARD_DATA.find(card => card.id === cardId);
         if (swipedCard) {
             if (direction === 'right') {
-                // Swipe kanan = LIKE
                 console.log('Liked card:', swipedCard.name);
             } else {
-                // Swipe kiri = NOPE
                 console.log('Passed card:', swipedCard.name);
             }
         }
 
-        // Reset gesture values dan hapus flag swiping setelah delay
         setTimeout(() => {
             translateX.value = 0;
             translateY.value = 0;
@@ -259,8 +243,6 @@ const TinderStack: React.FC = () => {
     }, [translateX, translateY]);
 
     const handleSwipeAnimationComplete = useCallback((direction: 'left' | 'right', cardId: number) => {
-        // Tunggu lebih lama sebelum menghapus kartu untuk memastikan tidak ada kedipan
-        // Delay ini memastikan kartu benar-benar hilang dari layar sebelum state update
         setTimeout(() => {
             markCardAsSwiped(cardId);
             handleSwipeComplete(direction, cardId);
@@ -273,7 +255,6 @@ const TinderStack: React.FC = () => {
         
         if (!cardToSwipe) return;
         
-        // Tandai kartu sedang di-swipe
         setSwipingCardId(cardToSwipe.id);
         
         const toX = direction === 'right' ? width * 1.5 : -width * 1.5;
@@ -288,35 +269,30 @@ const TinderStack: React.FC = () => {
             stiffness: 150,
             mass: 0.3,
         }, () => {
-            // Hapus kartu dari daftar setelah animasi selesai dengan delay
             handleSwipeAnimationComplete(direction, cardToSwipe.id);
         });
     }, [translateX, translateY, handleSwipeAnimationComplete, swipedCardIds]);
 
     const panGesture = Gesture.Pan()
-        .activeOffsetX([-10, 10]) // Aktifkan gesture setelah 10px pergerakan horizontal
-        .failOffsetY([-20, 20]) // Batalkan jika pergerakan vertikal terlalu besar
+        .activeOffsetX([-10, 10])
+        .failOffsetY([-20, 20])
         .onUpdate((event) => {
             translateX.value = event.translationX;
-            translateY.value = event.translationY * 0.3; // Kurangi pergerakan vertikal
+            translateY.value = event.translationY * 0.3;
         })
         .onEnd((event) => {
             const swipeDistance = Math.abs(translateX.value);
             const swipeDirection = translateX.value > 0 ? 'right' : 'left';
 
-            // Dapatkan kartu yang sedang di-swipe
             const currentAvailableCards = CARD_DATA.filter(card => !swipedCardIds.has(card.id));
             const cardToSwipe = currentAvailableCards[0];
 
             if (swipeDistance > SWIPE_THRESHOLD && cardToSwipe) {
-                // Tandai kartu sedang di-swipe untuk menghindari kedipan
                 runOnJS(setSwipingCardId)(cardToSwipe.id);
 
-                // Swipe complete - animate off screen dengan animasi yang lebih cepat
                 const toX = swipeDirection === 'right' ? width * 1.5 : -width * 1.5;
                 const toY = event.translationY * 0.3;
 
-                // Animasi spring yang lebih cepat dan halus
                 translateX.value = withSpring(toX, {
                     damping: 20,
                     stiffness: 150,
@@ -327,11 +303,9 @@ const TinderStack: React.FC = () => {
                     stiffness: 150,
                     mass: 0.3,
                 }, () => {
-                    // Tunggu lebih lama sebelum menghapus kartu untuk memastikan tidak ada kedipan
                     runOnJS(handleSwipeAnimationComplete)(swipeDirection, cardToSwipe.id);
                 });
             } else {
-                // Snap back to center dengan animasi spring yang halus
                 translateX.value = withSpring(0, {
                     damping: 25,
                     stiffness: 150,
@@ -349,7 +323,6 @@ const TinderStack: React.FC = () => {
                 <>
                     <View style={styles.stackContainer}>
                         {activeCards.map((card, index) => {
-                            // Gunakan key yang stabil berdasarkan card.id saja untuk menghindari re-render
                             const isCardSwiping = swipingCardId === card.id && index === 0;
                             return (
                                 <Card
